@@ -6,13 +6,30 @@ from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy()
 
 
+favorite_character = db.Table('favorite_character',
+    db.Column('char_id',db.Integer,db.ForeignKey('characters.id'),primary_key=True),
+    db.Column('user_id',db.Integer,db.ForeignKey('user.id'),primary_key=True)
+)
+
+favorite_planet = db.Table('favorite_planet',
+    db.Column('planet_id',db.Integer,db.ForeignKey('planets.id'),primary_key=True),
+    db.Column('user_id',db.Integer,db.ForeignKey('user.id'),primary_key=True)
+)
+
+favorite_vehicle = db.Table('favorite_vehicle',
+    db.Column('planet_id',db.Integer,db.ForeignKey('vehicles.id'),primary_key=True),
+    db.Column('user_id',db.Integer,db.ForeignKey('user.id'),primary_key=True)
+)
+
 class User(db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(255), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False)
-    favorites = db.relationship('Favorites', backref="user")  # One to One
+    favorite_character = db.relationship('Characters',secondary=favorite_character)
+    favorite_planet = db.relationship('Planets',secondary=favorite_planet)
+    favorite_vehicle = db.relationship('Vehicles',secondary=favorite_vehicle)
 
     def serialize(self):
         return{
@@ -25,13 +42,21 @@ class User(db.Model):
         return {
             "id": self.id,
             "username": self.username,
+            "email": self.email,
             "favorites": self.get_favorites()
+
         }
-
+    
     def get_favorites(self):
-        return list(map(lambda favorite:{'id': favorite.id, "planet_id": favorite.planet_id, "character_id": favorite.character_id, "vehicle_id": favorite.vehicle_id},self.favorites))
-
-
+        array = []
+        characters = list(map(lambda characters: characters.serialize(),self.favorite_character))
+        planets = list(map(lambda planets: planets.serialize(),self.favorite_planet))
+        vehicles = list(map(lambda vehicles: vehicles.serialize(),self.favorite_vehicle))
+        for character in characters: array.append(character)
+        for planet in planets: array.append(planet)
+        for vehicle in vehicles: array.append(vehicle)
+        return array
+    
     def save(self):
         db.session.add(self)
         db.session.commit()
@@ -44,27 +69,7 @@ class User(db.Model):
         db.session.commit()
 
 
-class Favorites(db.Model):
-    __tablename__ = 'favorites'
-    id = db.Column(db.Integer, primary_key=True)
-    planet_id = db.Column(db.Integer, db.ForeignKey('planets.id'))  # Foreign Key of Planets Table
-    planets = db.relationship('Planets', backref='favorites',secondary='planets')  # One to Many
-    character_id = db.Column(db.Integer, db.ForeignKey('characters.id'))  # Foreign Key of Characters Table
-    characters = db.relationship('Characters', backref='favorites', secondary='characters')  # One to Many
-    vehicle_id = db.Column(db.Integer, db.ForeignKey('vehicles.id'))  # Foreign Key of Vehicles Table
-    vehicles = db.relationship('Vehicles', backref='favorites', secondary='vehicles')
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))  # Foreign Key of User Table
 
-    def save(self):
-        db.session.add(self)
-        db.session.commit()
-
-    def update(self):
-        db.session.commit()
-
-    def delete(self):
-        db.session.delete(self)
-        db.session.commit()
 
 
 class Planets(db.Model):
@@ -74,6 +79,7 @@ class Planets(db.Model):
     gravity = db.Column(db.String(255))
     terrain = db.Column(db.String(255))
     population = db.Column(db.Integer)
+    users =  db.relationship('User',secondary=favorite_planet)
 
     def serialize(self):
         return{
@@ -106,7 +112,8 @@ class Characters(db.Model):
     # Foreign Key of Vehicles Table , ONE TO MANY
     vehicle_id = db.Column(db.Integer, db.ForeignKey('vehicles.id'))
     char_vehicles = db.relationship('Vehicles', backref='characters')
-
+    users =  db.relationship('User',secondary=favorite_character)
+    
     def serialize(self):
         return{
             "id" : self.id,
@@ -137,6 +144,17 @@ class Vehicles(db.Model):
     cost = db.Column(db.Integer)
     max_speed = db.Column(db.Integer)
     pilots = db.Column(db.Integer)
+    users =  db.relationship('User',secondary=favorite_vehicle)
+
+    def serialize(self):
+        return{
+            "id" : self.id,
+            "name" : self.name,
+            "model" : self.model,
+            "cost" : self.cost,
+            "max_speed" : self.max_speed,
+            "pilots" : self.pilots
+        }
 
     def save(self):
         db.session.add(self)
